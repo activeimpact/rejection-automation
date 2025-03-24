@@ -48,12 +48,16 @@ SMTP_PORT = int(get_secret('SMTP_PORT', '587'))
 COPPER_API_URL = get_secret('COPPER_API_URL', 'https://api.copper.com/developer_api/v1')
 
 # Log the credentials we're using (with appropriate masking)
-logger.info(f"Using Copper Email: {COPPER_EMAIL}")
+logger.info("=== Copper API Configuration ===")
+logger.info(f"Copper Email: {COPPER_EMAIL}")
 if COPPER_API_TOKEN:
     masked_token = COPPER_API_TOKEN[:4] + "..." + COPPER_API_TOKEN[-4:] if len(COPPER_API_TOKEN) > 8 else "***"
-    logger.info(f"Using Copper API Token: {masked_token}")
+    logger.info(f"Copper API Token (masked): {masked_token}")
+    logger.info(f"Copper API Token length: {len(COPPER_API_TOKEN)} characters")
 else:
     logger.warning("Copper API Token is not set")
+logger.info(f"Copper API URL: {COPPER_API_URL}")
+logger.info("================================")
 
 # Log email configuration (without password)
 logger.info(f"Email configuration: Address={EMAIL_ADDRESS}, Server={SMTP_SERVER}, Port={SMTP_PORT}")
@@ -440,6 +444,39 @@ def has_form_data(lead_details):
     
     return False
 
+# Function to verify Copper API configuration
+def verify_copper_config():
+    """Verify Copper API configuration and connection."""
+    if not COPPER_API_TOKEN or not COPPER_EMAIL:
+        return False, "Copper API credentials not configured. Please check your Streamlit secrets."
+    
+    try:
+        # Try to fetch a single lead to verify the connection
+        response = requests.get(
+            f"{COPPER_API_URL}/leads/search",
+            headers=HEADERS,
+            params={"page_size": 1},
+            timeout=30
+        )
+        
+        logger.info(f"Copper API Response Status: {response.status_code}")
+        logger.info(f"Copper API Response Headers: {response.headers}")
+        
+        if response.status_code == 401:
+            logger.error("Authentication failed with Copper API")
+            return False, "Authentication failed with Copper API. Please check your API token and email."
+        elif response.status_code != 200:
+            logger.error(f"Error response from Copper: {response.text}")
+            return False, f"API error: {response.status_code}. Please check your API configuration."
+        
+        return True, "Copper API configuration verified successfully!"
+    except requests.exceptions.RequestException as e:
+        logger.error(f"Request error: {str(e)}")
+        return False, f"Connection error: {str(e)}"
+    except Exception as e:
+        logger.error(f"Unexpected error: {str(e)}")
+        return False, f"Unexpected error: {str(e)}"
+
 # Main Streamlit app
 def main():
     # Initialize session state variables
@@ -565,6 +602,16 @@ def main():
                 st.sidebar.error(f"❌ Connection failed: {str(e)}")
                 logger.error(f"Email connection test failed: {str(e)}")
 
+    # Add Copper API verification in sidebar
+    st.sidebar.header("API Configuration")
+    if st.sidebar.button("Verify Copper API"):
+        with st.spinner("Verifying Copper API configuration..."):
+            success, message = verify_copper_config()
+            if success:
+                st.sidebar.success("✅ " + message)
+            else:
+                st.sidebar.error("❌ " + message)
+
     # Add a refresh button
     if st.button("Refresh Leads"):
         # Clear caches on refresh
@@ -574,10 +621,15 @@ def main():
             del st.session_state.email_cache
         st.rerun()
 
-    # Fetch leads
-    leads = fetch_leads()
+    # Fetch leads with error handling
+    leads_result = fetch_leads()
+    if isinstance(leads_result, dict) and "error" in leads_result:
+        st.error(f"Error fetching leads from Copper: {leads_result['error']}")
+        return
+    
+    leads = leads_result if isinstance(leads_result, list) else []
     if not leads:
-        st.warning("No leads found or error fetching leads from Copper CRM.")
+        st.warning("No leads found in Copper CRM.")
         return
 
     # Add search functionality
