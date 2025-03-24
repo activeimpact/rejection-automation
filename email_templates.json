@@ -1,0 +1,16 @@
+{
+    "hardware": "Hi {first_name},\n\nThank you for reaching out to Active Impact!\n\nWe don't often invest in hardware that is pre-commercialization and/or will take significant capital to scale. For that reason, {company_name} is not a fit for us at this time but we welcome you to reconnect with us if the capital profile and traction changes.\n\nWe wish you genuine success going forward!\n\nWarmly,\n\n",
+    
+    "too_early": "Hi {first_name},\n\nThank you for reaching out to Active Impact!\n\nWe’re excited about what you are building, but it’s earlier than where we usually invest. We typically want to see some early signs of product-market fit. {company_name} currently has a revenue model of {revenue_model} and a last reported revenue of {last_revenue}. We welcome you to stay in touch and reconnect with us once you have some early revenues.\n\nWe genuinely wish you success in the meantime and look forward to hearing from you in the future.\n\nWarmly,\n\n",
+    
+    "geography": "Hi {first_name},\n\nThank you for reaching out to Active Impact!\n\nWe generally focus on early-stage climate tech companies based in North America. Unfortunately, {company_name} is outside our geographic focus at this time.\n\nWe genuinely wish you success going forward!\n\nWarmly,\n\n",
+  
+    "too_far_along": "Hi {first_name},\n\nThank you for reaching out to Active Impact!\n\nWe generally focus on seed/series A companies with less than $3M in revenues, and as such {company_name} is too advanced for us to look at. We see that you currently have {employees} full-time employees and strong revenue traction, making you a bit beyond our typical investment stage.\n\nWe genuinely wish you success going forward!\n\nWarmly,\n\n",
+  
+    "not_enough_impact": "Hi {first_name},\n\nThank you for reaching out to Active Impact!\n\nWe generally focus on investing in seed-stage climate tech companies that can quantify a significant amount of climate impact that is directly attributable to their solution. While {company_name} is doing meaningful work, we are unable to see a clear path to the large-scale emissions reductions we typically look for.\n\nPlease let us know if we are missing anything or can better understand your true impact.\n\nWe genuinely wish you success going forward!\n\nWarmly,\n\n",
+  
+    "competitive": "Hi {first_name},\n\nThank you for reaching out to Active Impact!\n\nIt appears that {company_name} is competitive with our existing portfolio company, and as such, we are unfortunately not a fit at this time. Please let us know if you think we are missing something.\n\nWe genuinely wish you success going forward!\n\nWarmly,\n\n",
+  
+    "general": "Hi {first_name},\n\nThank you for reaching out to Active Impact!\n\nUnfortunately, we are not fit for an investment in {company_name}, but we wish you all the best with this raise and beyond!\n\nWarmly,\n\n"
+  }
+  
