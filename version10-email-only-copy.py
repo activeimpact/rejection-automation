@@ -76,14 +76,31 @@ HEADERS = {
 }
 
 # Load rejection email templates from JSON file
-try:
-    with open("email_templates.json", "r") as f:
-        EMAIL_TEMPLATES = json.load(f)
-    logger.info(f"Loaded {len(EMAIL_TEMPLATES)} email templates")
-except Exception as e:
-    st.error(f"Error loading email templates: {e}")
-    logger.error(f"Error loading email templates: {e}")
-    EMAIL_TEMPLATES = {}
+import os
+
+# Try different possible locations for the email_templates.json file
+possible_paths = [
+    "email_templates.json",
+    os.path.join(os.path.dirname(__file__), "email_templates.json"),
+    "/mount/src/rejection-automation/email_templates.json"  # Streamlit Cloud path
+]
+
+EMAIL_TEMPLATES = {}
+for path in possible_paths:
+    try:
+        with open(path, "r") as f:
+            EMAIL_TEMPLATES = json.load(f)
+            logger.info(f"Loaded {len(EMAIL_TEMPLATES)} email templates from {path}")
+            break
+    except Exception as e:
+        logger.warning(f"Couldn't load email templates from {path}: {e}")
+
+# If no templates were loaded, provide defaults
+if not EMAIL_TEMPLATES:
+    logger.warning("Using default email templates")
+    EMAIL_TEMPLATES = {
+        "general": """Hi {first_name},\n\nThanks so much for reaching out to Active Impact!\n\nThank you for your interest in our fund, but we've decided to pass on this opportunity.\n\nWarmly,"""
+    }
 
 # Add global caching for lead details and field definitions
 LEAD_DETAILS_CACHE = {}
