@@ -1,6 +1,5 @@
 import streamlit as st
 import requests
-import openai
 import os
 import json
 from dotenv import load_dotenv
@@ -35,7 +34,6 @@ def get_secret(key, default=None):
 # Set up API credentials using get_secret
 COPPER_API_TOKEN = get_secret('COPPER_API_TOKEN', '')
 COPPER_EMAIL = get_secret('COPPER_EMAIL', '')
-OPENAI_API_KEY = get_secret('OPENAI_API_KEY', '')
 EMAIL_ADDRESS = get_secret('EMAIL_ADDRESS', '')
 EMAIL_PASSWORD = get_secret('EMAIL_PASSWORD', '')
 SMTP_SERVER = get_secret('SMTP_SERVER', 'smtp.gmail.com')
