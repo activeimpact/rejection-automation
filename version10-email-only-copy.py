@@ -1,4 +1,13 @@
 import streamlit as st
+
+# Set page configuration for better appearance
+st.set_page_config(
+    page_title="Investment Pass Email Manager",
+    page_icon="📧",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
+
 import requests
 import os
 import json
@@ -10,7 +19,6 @@ from datetime import datetime, timedelta
 import re
 import html
 import time
-import platform
 
 # Configure logging first
 logging.basicConfig(level=logging.INFO)
@@ -38,22 +46,6 @@ EMAIL_PASSWORD = get_secret('EMAIL_PASSWORD', '')
 SMTP_SERVER = get_secret('SMTP_SERVER', 'smtp.gmail.com')
 SMTP_PORT = int(get_secret('SMTP_PORT', '587'))
 COPPER_API_URL = get_secret('COPPER_API_URL', 'https://api.copper.com/developer_api/v1')
-
-# Debug .env file loading
-logger.info(f"Current directory: {os.getcwd()}")
-env_path = os.path.join(os.getcwd(), '.env')
-logger.info(f"Looking for .env file at: {env_path}")
-
-# Import win32com only on Windows
-is_windows = platform.system() == "Windows"
-if is_windows:
-    try:
-        import win32com.client
-    except ImportError:
-        is_windows = False
-        st.warning("win32com module not available. Outlook integration will be disabled.")
-else:
-    st.warning("Outlook integration is only available on Windows. Running in limited mode.")
 
 # Log the credentials we're using (with appropriate masking)
 logger.info(f"Using Copper Email: {COPPER_EMAIL}")
@@ -88,7 +80,6 @@ except Exception as e:
 # Add global caching for lead details and field definitions
 LEAD_DETAILS_CACHE = {}
 FIELD_DEFINITIONS_CACHE = None
-OUTLOOK_EMAIL_CACHE = {}  # Cache for Outlook emails to avoid repeated fetching
 
 # Function to fetch leads from Copper CRM
 def fetch_leads():
@@ -257,10 +248,10 @@ def get_email_from_lead(lead_details):
     
     return ""
 
-# Function to send email via Outlook/Office365
+# Function to send email via Gmail SMTP
 def send_email(recipient_email, subject, body, cc_email=None):
     if not EMAIL_ADDRESS or not EMAIL_PASSWORD:
-        error_msg = "Email credentials not configured. Please check your .env file."
+        error_msg = "Email credentials not configured. Please check your Streamlit secrets."
         logger.error(error_msg)
         return False, error_msg
     
@@ -307,24 +298,24 @@ def send_email(recipient_email, subject, body, cc_email=None):
         logger.info("Email sent successfully!")
         return True, "Email sent successfully!"
     except smtplib.SMTPAuthenticationError as e:
-        if "535 5.7.3" in str(e):
+        if "535" in str(e):
             error_msg = (
-                "Authentication failed with Outlook. This is likely because:\n"
+                "Authentication failed with Gmail. This is likely because:\n"
                 "1. You need to use an App Password instead of your regular password\n"
-                "2. Your account has MFA enabled which requires an App Password\n"
+                "2. Your account has 2-factor authentication enabled which requires an App Password\n"
                 "3. Your password may be incorrect\n\n"
                 "To create an App Password:\n"
-                "- Go to https://account.microsoft.com/security\n"
-                "- Select 'Advanced security options'\n"
-                "- Under 'Additional security', select 'App passwords'\n"
-                "- Create a new app password and update your .env file"
+                "1. Go to your Google Account settings\n"
+                "2. Search for 'App Passwords'\n"
+                "3. Generate a new app password for 'Mail'\n"
+                "4. Use that password in your Streamlit secrets"
             )
         else:
             error_msg = f"Authentication failed: {str(e)}. Please check your email credentials."
         logger.error(error_msg)
         return False, error_msg
     except smtplib.SMTPSenderRefused as e:
-        error_msg = f"Sender refused: {str(e)}. This may be due to restrictions on your email account."
+        error_msg = f"Sender refused: {str(e)}. This may be due to restrictions on your Gmail account."
         logger.error(error_msg)
         return False, error_msg
     except smtplib.SMTPRecipientsRefused as e:
@@ -420,173 +411,8 @@ def has_form_data(lead_details):
     
     return False
 
-# Function to fetch form submission emails from Outlook
-def fetch_form_submission_email(lead_name, company_name, email_address=None):
-    """
-    Fetch form submission email from Outlook based on lead name, company name, or email address.
-    Returns the email body and subject if found, otherwise returns None.
-    """
-    # Check if running on Windows with Outlook available
-    if not is_windows:
-        logger.info(f"Outlook integration not available on this platform. Skipping email fetch for {lead_name}.")
-        return None
-        
-    # Check cache first
-    cache_key = f"{lead_name}_{company_name}_{email_address}"
-    if cache_key in OUTLOOK_EMAIL_CACHE:
-        logger.info(f"Using cached Outlook email for {lead_name} / {company_name}")
-        return OUTLOOK_EMAIL_CACHE[cache_key]
-    
-    try:
-        logger.info(f"Searching Outlook for form submission from {lead_name} / {company_name}")
-        
-        # Connect to Outlook
-        outlook = win32com.client.Dispatch("Outlook.Application")
-        namespace = outlook.GetNamespace("MAPI")
-        inbox = namespace.GetDefaultFolder(6)  # 6 is the inbox folder
-        
-        # Create search criteria
-        search_terms = []
-        if lead_name:
-            # Split name into parts and search for each part
-            name_parts = lead_name.split()
-            for part in name_parts:
-                if len(part) > 2:  # Only use parts that are longer than 2 characters
-                    search_terms.append(part)
-        
-        if company_name and company_name != "Unknown Company":
-            search_terms.append(company_name)
-            
-        if email_address and "@" in email_address:
-            search_terms.append(email_address)
-            
-        # Add form submission related terms
-        search_terms.append("form submission")
-        search_terms.append("Active Impact Investments")
-        
-        # If we don't have enough search terms, return None
-        if len(search_terms) < 2:
-            logger.warning(f"Not enough search terms for {lead_name} / {company_name}")
-            return None
-            
-        # Search for emails
-        messages = inbox.Items
-        messages.Sort("[ReceivedTime]", True)  # Sort by received time, newest first
-        
-        # Filter to last 90 days to improve performance
-        cutoff_date = datetime.now() - timedelta(days=90)
-        cutoff_date_str = cutoff_date.strftime("%m/%d/%Y %H:%M %p")
-        filter_str = f"[ReceivedTime] >= '{cutoff_date_str}'"
-        filtered_messages = messages.Restrict(filter_str)
-        
-        # Look through the filtered messages
-        found_email = None
-        for message in filtered_messages:
-            # Check if the message matches our search criteria
-            message_text = f"{message.Subject} {message.SenderName} {message.SenderEmailAddress} {message.Body}".lower()
-            
-            # Count how many search terms match
-            match_count = sum(1 for term in search_terms if term.lower() in message_text)
-            
-            # If at least 2 search terms match and "form submission" is in the subject or body
-            if match_count >= 2 and "form submission" in message_text:
-                found_email = {
-                    "subject": message.Subject,
-                    "sender": message.SenderName,
-                    "sender_email": message.SenderEmailAddress,
-                    "received_time": message.ReceivedTime.strftime("%Y-%m-%d %H:%M:%S"),
-                    "body": message.Body,
-                    "html_body": message.HTMLBody if hasattr(message, "HTMLBody") else None
-                }
-                break
-        
-        # Cache the result (even if None)
-        OUTLOOK_EMAIL_CACHE[cache_key] = found_email
-        
-        if found_email:
-            logger.info(f"Found form submission email for {lead_name} / {company_name}")
-        else:
-            logger.info(f"No form submission email found for {lead_name} / {company_name}")
-            
-        return found_email
-        
-    except Exception as e:
-        logger.error(f"Error fetching Outlook email: {str(e)}")
-        return None
-
-# Function to parse form data from email body
-def parse_form_data_from_email(email_data):
-    """
-    Parse form submission data from email body.
-    Returns a dictionary of field names and values.
-    """
-    if not email_data or not email_data.get("body"):
-        return {}
-    
-    form_data = {}
-    
-    # Try to parse from HTML body first if available
-    if email_data.get("html_body"):
-        html_body = email_data["html_body"]
-        
-        # Look for field patterns in HTML
-        field_pattern = r'<strong>(.*?):</strong>\s*(.*?)<br'
-        matches = re.findall(field_pattern, html_body, re.DOTALL)
-        
-        for field_name, field_value in matches:
-            # Clean up the field value
-            clean_value = html.unescape(field_value.strip())
-            if clean_value and clean_value != "None" and clean_value != "N/A":
-                form_data[field_name.strip()] = clean_value
-    
-    # If HTML parsing didn't work or didn't find enough fields, try plain text
-    if len(form_data) < 5 and email_data.get("body"):
-        body = email_data["body"]
-        
-        # Look for field patterns in plain text
-        lines = body.split('\n')
-        current_field = None
-        
-        for line in lines:
-            line = line.strip()
-            
-            # Skip empty lines
-            if not line:
-                continue
-                
-            # Check if this line is a field name
-            if ':' in line and not line.startswith('http') and not line.startswith('www'):
-                parts = line.split(':', 1)
-                if len(parts) == 2:
-                    field_name = parts[0].strip()
-                    field_value = parts[1].strip()
-                    
-                    # If the field value is empty, it might be on the next line
-                    if field_value:
-                        form_data[field_name] = field_value
-                        current_field = None
-                    else:
-                        current_field = field_name
-                        
-            # If we're continuing a field from the previous line
-            elif current_field:
-                if current_field in form_data:
-                    form_data[current_field] += " " + line
-                else:
-                    form_data[current_field] = line
-    
-    return form_data
-
 # Main Streamlit app
 def main():
-    # Set page configuration for better appearance
-    st.set_page_config(
-        page_title="Investment Pass Email Manager",
-        page_icon="📧",
-        layout="wide",
-        initial_sidebar_state="expanded"
-    )
-    
     # Initialize session state variables
     if "selected_leads" not in st.session_state:
         st.session_state.selected_leads = {}
@@ -1095,7 +921,7 @@ def main():
                     if not recipient_email:
                         st.error("No recipient email address found for this lead.")
                     elif not EMAIL_ADDRESS or not EMAIL_PASSWORD:
-                        st.error("Email credentials not configured. Please check your .env file.")
+                        st.error("Email credentials not configured. Please check your Streamlit secrets.")
                     else:
                         # First verify connection
                         try:
