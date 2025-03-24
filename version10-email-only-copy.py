@@ -173,59 +173,42 @@ def get_custom_field(lead_details, field_name):
 
     return ""
 
-# Function to generate AI-powered rejection email with caching
-def generate_rejection_email(lead_details, reason):
-    # Create a cache key based on lead ID and reason
-    cache_key = f"{lead_details.get('id')}_{reason}"
-    
-    # Check if we have this email in session state cache
-    if 'email_cache' not in st.session_state:
-        st.session_state.email_cache = {}
-    
-    if cache_key in st.session_state.email_cache:
-        return st.session_state.email_cache[cache_key]
-    
-    first_name = lead_details.get("first_name", "there")
-    company_name = lead_details.get("company_name", "your company")
-    revenue_model = get_custom_field(lead_details, "Revenue Model")
-    last_revenue = get_custom_field(lead_details, "Last year's revenue")
-    employees = get_custom_field(lead_details, "Number of full time employees")
-
-    # Get the template for the selected reason, or fall back to general
-    template = EMAIL_TEMPLATES.get(reason, EMAIL_TEMPLATES.get("general", ""))
-    
-    if not template:
-        email_content = f"Hi {first_name},\n\nThanks so much for reaching out to Active Impact!\n\nThank you for your interest, but we've decided to pass on this opportunity.\n\nWarmly,\nQhalisa"
-        st.session_state.email_cache[cache_key] = email_content
-        return email_content
-    
+def get_sender_name(email):
+    """Extract first name from email address."""
     try:
-        # Format the template with the lead details
-        email_content = template.format(
-            first_name=first_name,
-            company_name=company_name,
-            revenue_model=revenue_model,
-            last_revenue=last_revenue,
-            employees=employees
-        )
+        # Split email at @ and get the part before it
+        local_part = email.split('@')[0]
+        # Get the first name by removing the last character (which is the last initial)
+        first_name = local_part[:-1] if len(local_part) > 1 else local_part
+        # Capitalize first letter
+        return first_name.capitalize()
+    except:
+        return "Active Impact"
+
+def generate_rejection_email(lead_data, template_type="standard"):
+    """Generate rejection email content based on lead data and template type."""
+    try:
+        # Get the template
+        template = EMAIL_TEMPLATES.get(template_type, EMAIL_TEMPLATES.get("standard", ""))
+        if not template:
+            logger.error(f"Template not found: {template_type}")
+            return None
+
+        # Get sender's first name for signature
+        sender_name = get_sender_name(EMAIL_ADDRESS)
         
-        # Make sure it ends with our signature
-        if "Warmly,\n\n" in email_content:
-            email_content = email_content.replace("Warmly,\n\n", "Warmly,\nQhalisa")
-        elif "Warmly," not in email_content:
-            # If the template doesn't already have a closing, add our signature
-            email_content += "\n\nWarmly,\nQhalisa"
-            
-        # Cache the result
-        st.session_state.email_cache[cache_key] = email_content
-                
+        # Replace placeholders with actual data
+        email_content = template.replace("{lead_name}", lead_data.get("name", ""))
+        email_content = email_content.replace("{company_name}", lead_data.get("company_name", ""))
+        email_content = email_content.replace("{sender_name}", sender_name)
+        
+        # Add signature
+        email_content += f"\n\nWarmly,\n{sender_name}"
+        
         return email_content
-    except KeyError as e:
-        st.warning(f"Missing template key: {e}. Using simplified template.")
-        logger.warning(f"Missing template key: {e}. Using simplified template.")
-        email_content = f"Hi {first_name},\n\nThanks so much for reaching out to Active Impact!\n\nThank you for your interest in our fund, but we've decided to pass on this opportunity.\n\nWarmly,\nQhalisa"
-        st.session_state.email_cache[cache_key] = email_content
-        return email_content
+    except Exception as e:
+        logger.error(f"Error generating email: {str(e)}")
+        return None
 
 # Function to extract email address from lead details
 def get_email_from_lead(lead_details):
