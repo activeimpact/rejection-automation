@@ -255,7 +255,7 @@ def generate_rejection_email(lead_details, reason):
     template = EMAIL_TEMPLATES.get(reason, EMAIL_TEMPLATES.get("general", ""))
     
     if not template:
-        email_content = f"Hi {first_name},\n\nThanks so much for reaching out to Active Impact!\n\nThank you for your interest, but we've decided to pass on this opportunity.\n\nWarmly,\nFaith"
+        email_content = f"Hi {first_name},\n\nThanks so much for reaching out to Active Impact!\n\nThank you for your interest, but we've decided to pass on this opportunity.\n\nWarmly,\Qhalisa"
         st.session_state.email_cache[cache_key] = email_content
         return email_content
     
@@ -271,10 +271,10 @@ def generate_rejection_email(lead_details, reason):
         
         # Make sure it ends with our signature
         if "Warmly,\n\n" in email_content:
-            email_content = email_content.replace("Warmly,\n\n", "Warmly,\nFaith")
+            email_content = email_content.replace("Warmly,\n\n", "Warmly,\Qhalisa")
         elif "Warmly," not in email_content:
             # If the template doesn't already have a closing, add our signature
-            email_content += "\n\nWarmly,\nFaith"
+            email_content += "\n\nWarmly,\Qhalisa"
             
         # Cache the result
         st.session_state.email_cache[cache_key] = email_content
@@ -283,7 +283,7 @@ def generate_rejection_email(lead_details, reason):
     except KeyError as e:
         st.warning(f"Missing template key: {e}. Using simplified template.")
         logger.warning(f"Missing template key: {e}. Using simplified template.")
-        email_content = f"Hi {first_name},\n\nThanks so much for reaching out to Active Impact!\n\nThank you for your interest in our fund, but we've decided to pass on this opportunity.\n\nWarmly,\nFaith"
+        email_content = f"Hi {first_name},\n\nThanks so much for reaching out to Active Impact!\n\nThank you for your interest in our fund, but we've decided to pass on this opportunity.\n\nWarmly,\Qhalisa"
         st.session_state.email_cache[cache_key] = email_content
         return email_content
 
