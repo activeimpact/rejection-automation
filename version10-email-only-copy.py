@@ -57,7 +57,11 @@ else:
 
 # Log email configuration (without password)
 logger.info(f"Email configuration: Address={EMAIL_ADDRESS}, Server={SMTP_SERVER}, Port={SMTP_PORT}")
-logger.info(f"Using Copper API URL: {COPPER_API_URL}")
+if EMAIL_PASSWORD:
+    masked_password = EMAIL_PASSWORD[:2] + "..." + EMAIL_PASSWORD[-2:] if len(EMAIL_PASSWORD) > 4 else "***"
+    logger.info(f"Email password length: {len(EMAIL_PASSWORD)} characters")
+else:
+    logger.warning("Email password is not set")
 
 # Set up API headers with the loaded credentials
 HEADERS = {
@@ -81,21 +85,63 @@ except Exception as e:
 LEAD_DETAILS_CACHE = {}
 FIELD_DEFINITIONS_CACHE = None
 
-# Function to fetch leads from Copper CRM
-def fetch_leads():
-    payload = {"page_size": 50}
-    response = requests.post(f"{COPPER_API_URL}/leads/search", headers=HEADERS, json=payload)
+# Function to test email connection with detailed error reporting
+def test_email_connection():
+    """Test email connection with detailed error reporting."""
+    if not EMAIL_ADDRESS or not EMAIL_PASSWORD:
+        return False, "Email credentials not configured. Please check your Streamlit secrets."
     
-    if response.status_code == 200:
-        leads = response.json()
-        leads.sort(key=lambda x: x.get("date_created", 0), reverse=True)
-        logger.info(f"Successfully fetched {len(leads)} leads from Copper")
-        return leads
-    else:
-        error_msg = f"Error fetching leads from Copper: {response.text}"
-        st.error(error_msg)
+    try:
+        logger.info(f"Attempting to connect to {SMTP_SERVER}:{SMTP_PORT}")
+        server = smtplib.SMTP(SMTP_SERVER, SMTP_PORT)
+        server.set_debuglevel(1)  # Enable debug output
+        server.starttls()
+        
+        logger.info(f"Attempting to login with email: {EMAIL_ADDRESS}")
+        server.login(EMAIL_ADDRESS, EMAIL_PASSWORD)
+        
+        server.quit()
+        return True, "Email connection successful!"
+    except smtplib.SMTPAuthenticationError as e:
+        error_msg = f"Authentication failed: {str(e)}"
         logger.error(error_msg)
-        return []
+        return False, error_msg
+    except Exception as e:
+        error_msg = f"Connection failed: {str(e)}"
+        logger.error(error_msg)
+        return False, error_msg
+
+# Function to fetch leads from Copper CRM with detailed error reporting
+def fetch_leads():
+    """Fetch leads from Copper CRM with detailed error reporting."""
+    try:
+        logger.info("Attempting to fetch leads from Copper")
+        logger.info(f"Using API URL: {COPPER_API_URL}")
+        logger.info(f"Using headers: {HEADERS}")
+        
+        response = requests.get(
+            f"{COPPER_API_URL}/leads/search",
+            headers=HEADERS,
+            timeout=30
+        )
+        
+        logger.info(f"Response status code: {response.status_code}")
+        logger.info(f"Response headers: {response.headers}")
+        
+        if response.status_code == 401:
+            logger.error("Authentication failed with Copper API")
+            return {"error": "authentication error"}
+        elif response.status_code != 200:
+            logger.error(f"Error response from Copper: {response.text}")
+            return {"error": f"API error: {response.status_code}"}
+            
+        return response.json()
+    except requests.exceptions.RequestException as e:
+        logger.error(f"Request error: {str(e)}")
+        return {"error": str(e)}
+    except Exception as e:
+        logger.error(f"Unexpected error: {str(e)}")
+        return {"error": str(e)}
 
 # Function to fetch custom field definitions from Copper
 def fetch_custom_field_definitions():
